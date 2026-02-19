@@ -1,8 +1,23 @@
 """ S3-backed pypi server """
 import calendar
 import datetime
+import inspect
 import logging
+from collections import namedtuple
 from urllib.parse import urlencode
+
+# Restore inspect.getargspec for pyramid_duh compatibility (removed in Python 3.11).
+# pynose also patches this but returns a plain tuple instead of a namedtuple,
+# which breaks pyramid_duh's attribute access (e.g. argspec.defaults).
+_ArgSpec = namedtuple("ArgSpec", "args varargs keywords defaults")
+
+
+def _getargspec(func):
+    spec = inspect.getfullargspec(func)
+    return _ArgSpec(spec.args, spec.varargs, spec.varkw, spec.defaults)
+
+
+inspect.getargspec = _getargspec
 
 from pyramid.config import Configurator
 from pyramid.renderers import JSON, render

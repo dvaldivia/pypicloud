@@ -1,6 +1,0 @@
--e .[all_plugins,server]
--rrequirements_test.txt
-bumpversion
-tox
-twine
-wheel

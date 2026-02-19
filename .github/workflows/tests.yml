@@ -5,20 +5,33 @@ on:
   - pull_request
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        toxenv: [py37, py38, py39, lint]
-
+        python-version: ["3.7", "3.8", "3.9"]
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v4
     - name: Build containers
       run: ./compose build
-    - name: Run test
-      run: ./compose run tox -e ${{ matrix.toxenv }}
+    - name: Run tests
+      run: |
+        docker-compose run --rm \
+          -e BOTO_CONFIG=/nowhere \
+          shell bash -c "uv sync --python ${{ matrix.python-version }} --extra all_plugins --group test && uv run coverage run --source=pypicloud --branch -m nose --no-skip"
     - name: Publish coverage
-      if: ${{ matrix.toxenv == 'py38' }}
-      run: ./compose run tox -e coveralls
+      if: ${{ matrix.python-version == '3.8' }}
+      run: |
+        docker-compose run --rm shell bash -c "uv run pip install coveralls && uv run coveralls --service=github"
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build containers
+      run: ./compose build
+    - name: Run lint
+      run: |
+        docker-compose run --rm shell bash -c "uv sync --extra all_plugins --group test && uv run bash -c 'black --config /dev/null --check pypicloud tests scripts && isort -c pypicloud tests && mypy pypicloud && pylint --rcfile=.pylintrc pypicloud tests'"

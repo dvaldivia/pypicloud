@@ -1,0 +1,150 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pypicloud"
+dynamic = ["version"]
+description = "Private PyPI backed by S3"
+readme = {file = "README.rst", content-type = "text/x-rst"}
+license = "MIT"
+requires-python = ">=3.9"
+authors = [{name = "Steven Arcangeli", email = "stevearc@stevearc.com"}]
+keywords = ["pypi", "s3", "cheeseshop", "package"]
+classifiers = [
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Development Status :: 4 - Beta",
+    "Framework :: Pyramid",
+    "Intended Audience :: System Administrators",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: System :: Systems Administration",
+]
+dependencies = [
+    "smart_open[s3,http]",
+    "boto3>=1.7.0",
+    "cryptography",
+    "distlib",
+    "paste",
+    "passlib>=1.7",
+    "pyramid>=2",
+    "pyramid_beaker",
+    "pyramid_duh",
+    "pyramid_jinja2",
+    "pyramid_rpc",
+    "pyramid_tm",
+    "requests",
+    "transaction",
+    "zope.sqlalchemy",
+]
+
+[project.optional-dependencies]
+ldap = ["python-ldap"]
+dynamo = ["flywheel>=0.2.0"]
+redis = ["redis"]
+gcs = ["google-cloud-storage>=1.10.0", "smart_open[gcs]>=6.3.0"]
+azure-blob = ["azure-storage-blob>=12.5.0", "smart_open[azure]>=6.1.0"]
+all_plugins = [
+    "python-ldap",
+    "flywheel>=0.2.0",
+    "redis",
+    "google-cloud-storage>=1.10.0",
+    "smart_open[gcs]>=6.3.0",
+    "azure-storage-blob>=12.5.0",
+    "smart_open[azure]>=6.1.0",
+]
+server = ["waitress"]
+
+[project.scripts]
+pypicloud-gen-password = "pypicloud.scripts:gen_password"
+pypicloud-make-config = "pypicloud.scripts:make_config"
+ppc-gen-password = "pypicloud.scripts:gen_password"
+ppc-make-config = "pypicloud.scripts:make_config"
+ppc-migrate = "pypicloud.scripts:migrate_packages"
+ppc-export = "pypicloud.scripts:export_access"
+ppc-import = "pypicloud.scripts:import_access"
+ppc-create-s3-sync = "pypicloud.lambda_scripts:create_sync_scripts"
+ppc-build-lambda-bundle = "pypicloud.lambda_scripts:build_lambda_bundle"
+
+[project.entry-points."paste.app_factory"]
+main = "pypicloud:main"
+
+[project.urls]
+Documentation = "http://pypicloud.readthedocs.org/"
+
+[tool.uv]
+override-dependencies = ["setuptools<78"]
+
+[tool.hatch.version]
+path = "pypicloud/__init__.py"
+
+[tool.hatch.build.targets.sdist]
+include = ["pypicloud/", "README.rst", "CHANGES.rst", "LICENSE"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["pypicloud"]
+
+[dependency-groups]
+test = [
+    "black",
+    "coverage",
+    "docutils",
+    "isort",
+    "mock",
+    "moto",
+    "mypy",
+    "mysqlclient",
+    "pynose",
+    "psycopg2-binary",
+    "pylint>=3.0",
+    "requests",
+    "types-setuptools",
+    "types-protobuf",
+    "types-redis",
+    "types-requests",
+    "webtest",
+]
+dev = [
+    {include-group = "test"},
+    "bumpversion",
+    "twine",
+]
+docs = [
+    "azure-storage-blob",
+    "flywheel",
+    "google-cloud-storage",
+    "numpydoc",
+    "psycopg2-binary",
+    "redis",
+    "requests",
+    "sphinx",
+    "sphinx_rtd_theme",
+]
+
+[tool.mypy]
+ignore_missing_imports = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_unreachable = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = "google.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "azure.*"
+follow_imports = "skip"
+
+[tool.isort]
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+line_length = 88
+ignore_whitespace = true

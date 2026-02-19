@@ -1,3 +1,0 @@
-include *.rst requirements_test.txt
-recursive-include pypicloud *.css *.woff *.svg *.ttf *.otf *.eot *.js *.map *.html *.jinja2
-recursive-exclude tests *

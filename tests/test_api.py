@@ -123,9 +123,7 @@ class TestApi(MockServerTest):
         db.fetch.assert_called_with(context.filename)
         db.storage.open.assert_called_once_with(db.fetch())
         db.download_response.assert_not_called()
-        self.assertDictContainsSubset(
-            {"Cache-Control": "public, max-age=30"}, ret.headers
-        )
+        self.assertEqual(ret.headers["Cache-Control"], "public, max-age=30")
 
     def test_download_fallback_no_cache(self):
         """Downloading missing package on non-'cache' fallback returns 404"""
@@ -184,9 +182,7 @@ class TestApi(MockServerTest):
             dist["requires_python"],
         )
         self.assertEqual(ret.body, b"fds")
-        self.assertDictContainsSubset(
-            {"Cache-Control": "public, max-age=0"}, ret.headers
-        )
+        self.assertEqual(ret.headers["Cache-Control"], "public, max-age=0")
 
     @patch("pypicloud.views.api.fetch_dist")
     def test_download_fallback_cache_max_age(self, fetch_dist):
@@ -207,6 +203,4 @@ class TestApi(MockServerTest):
         ret = api.download_package(context, self.request)
         fetch_dist.assert_called_once()
         self.assertEqual(ret.body, b"fds")
-        self.assertDictContainsSubset(
-            {"Cache-Control": "public, max-age=30"}, ret.headers
-        )
+        self.assertEqual(ret.headers["Cache-Control"], "public, max-age=30")

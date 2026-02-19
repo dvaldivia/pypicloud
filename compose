@@ -5,9 +5,13 @@ CURRENT_UID=$(id -u):$(id -g)
 export CURRENT_UID
 
 if [ -z "$1" ]; then
-  echo "$0 [test,shell,run,*]"
+  echo "$0 [test,lint,format,shell,run,*]"
 elif [ "$1" == "test" ]; then
-  docker-compose run --rm shell tox
+  docker-compose run --rm shell bash -c "uv sync --extra all_plugins --group test && BOTO_CONFIG=/nowhere uv run coverage run --source=pypicloud --branch -m nose --no-skip"
+elif [ "$1" == "lint" ]; then
+  docker-compose run --rm shell bash -c "uv sync --extra all_plugins --group test && uv run bash -c 'python setup.py check --restructuredtext -s 2>/dev/null || true; black --config /dev/null --check pypicloud tests scripts && isort -c pypicloud tests && mypy pypicloud && pylint --rcfile=.pylintrc pypicloud tests'"
+elif [ "$1" == "format" ]; then
+  docker-compose run --rm shell bash -c "uv sync --group test && uv run bash -c 'isort --atomic pypicloud tests scripts && black --config /dev/null pypicloud tests scripts'"
 elif [ "$1" == "run" ]; then
   shift
   docker-compose run --rm shell "$@"

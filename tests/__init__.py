@@ -14,6 +14,7 @@ from pypicloud.storage import IStorage
 
 os.environ["AWS_SECRET_ACCESS_KEY"] = "access_key"
 os.environ["AWS_ACCESS_KEY_ID"] = "secret_key"
+os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
 
 
 def make_package(

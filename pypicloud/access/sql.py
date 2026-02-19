@@ -304,7 +304,7 @@ class SQLAccessBackend(IMutableAccessBackend):
     def delete_user(self, username):
         self.db.query(User).filter_by(username=username).delete()
         clause = association_table.c.username == username
-        self.db.execute(association_table.delete(clause))
+        self.db.execute(association_table.delete().where(clause))
 
     def set_user_admin(self, username, admin):
         user = self.db.query(User).filter_by(username=username).first()
@@ -326,7 +326,7 @@ class SQLAccessBackend(IMutableAccessBackend):
     def delete_group(self, group):
         self.db.query(Group).filter_by(name=group).delete()
         clause = association_table.c.group == group
-        self.db.execute(association_table.delete(clause))
+        self.db.execute(association_table.delete().where(clause))
 
     def edit_user_permission(self, package_name, username, perm, add):
         record = (
