@@ -8,15 +8,13 @@ dynamic = ["version"]
 description = "Private PyPI backed by S3"
 readme = {file = "README.rst", content-type = "text/x-rst"}
 license = "MIT"
-requires-python = ">=3.9"
+requires-python = ">=3.13"
 authors = [{name = "Steven Arcangeli", email = "stevearc@stevearc.com"}]
 keywords = ["pypi", "s3", "cheeseshop", "package"]
 classifiers = [
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.7",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.13",
     "Development Status :: 4 - Beta",
     "Framework :: Pyramid",
     "Intended Audience :: System Administrators",

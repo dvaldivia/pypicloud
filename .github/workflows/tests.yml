@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.7", "3.8", "3.9"]
+        python-version: ["3.13"]
     steps:
     - uses: actions/checkout@v4
     - name: Build containers
@@ -20,7 +20,7 @@ jobs:
           -e BOTO_CONFIG=/nowhere \
           shell bash -c "uv sync --python ${{ matrix.python-version }} --extra all_plugins --group test && uv run coverage run --source=pypicloud --branch -m nose --no-skip"
     - name: Publish coverage
-      if: ${{ matrix.python-version == '3.8' }}
+      if: ${{ matrix.python-version == '3.13' }}
       run: |
         docker-compose run --rm shell bash -c "uv run pip install coveralls && uv run coveralls --service=github"
       env:
