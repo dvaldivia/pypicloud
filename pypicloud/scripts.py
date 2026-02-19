@@ -175,7 +175,7 @@ def make_config(argv=None):
 
     storage = prompt_option(
         "Where do you want to store your packages?",
-        ["s3", "gcs", "filesystem", "azure-blob"],
+        ["s3", "s3-compatible", "gcs", "filesystem", "azure-blob"],
     )
     if storage == "filesystem":
         storage = "file"
@@ -195,6 +195,15 @@ def make_config(argv=None):
         data["s3_bucket"] = prompt("S3 bucket name?", validate=bucket_validate)
         if "." in data["s3_bucket"]:
             data["bucket_region"] = prompt("S3 bucket region?")
+
+    if storage == "s3-compatible":
+        data["endpoint_url"] = prompt("Endpoint URL? (e.g. http://localhost:9000)")
+        data["addressing_style"] = "path"
+        data["access_key"] = prompt("Access key?")
+        data["secret_key"] = prompt("Secret key?")
+        data["s3_bucket"] = prompt("Bucket name?", validate=bucket_validate)
+        data["bucket_region"] = prompt("Region name?", default="us-east-1")
+        data["storage"] = "s3"
 
     if storage == "gcs":
         data["gcs_bucket"] = prompt("GCS bucket name?", validate=bucket_validate)

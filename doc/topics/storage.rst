@@ -143,6 +143,58 @@ read your packages, this will give you a speed boost (no expensive hashing
 operations) and should provide better HTTP caching behavior for the packages.
 Default is ``false``.
 
+S3-Compatible Storage
+---------------------
+pypicloud can connect to any S3-compatible storage backend such as `MinIO
+<https://min.io/>`__, DigitalOcean Spaces, Ceph Object Gateway, Wasabi, or
+Backblaze B2. This uses the same ``S3Storage`` backend as regular S3 but with a
+custom endpoint URL.
+
+Set ``pypi.storage = s3`` and configure the settings below in addition to the
+standard S3 settings described above.
+
+``storage.endpoint_url``
+~~~~~~~~~~~~~~~~~~~~~~~~
+**Argument:** string
+
+The URL of your S3-compatible storage endpoint.
+
+Example: ``http://localhost:9000`` for a local MinIO instance.
+
+``storage.addressing_style``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+**Argument:** string, optional
+
+The S3 addressing style to use. Most S3-compatible stores require ``path``
+style addressing. Valid values are ``path`` and ``virtual``. Default is
+``virtual`` (the AWS default), but you almost always want ``path`` for
+non-AWS backends.
+
+``storage.use_ssl``
+~~~~~~~~~~~~~~~~~~~
+**Argument:** bool, optional
+
+Whether to use HTTPS when connecting to the endpoint. Default is ``true``.
+Set to ``false`` if your endpoint does not support HTTPS (e.g. a local
+development MinIO instance).
+
+``storage.verify``
+~~~~~~~~~~~~~~~~~~
+**Argument:** bool or string, optional
+
+Whether to validate SSL certificates. Set to ``false`` to disable certificate
+verification, or provide a path to a CA bundle file. Default is ``true``.
+
+Example MinIO configuration::
+
+    pypi.storage = s3
+    storage.endpoint_url = http://localhost:9000
+    storage.addressing_style = path
+    storage.aws_access_key_id = minio_access_key
+    storage.aws_secret_access_key = minio_secret_key
+    storage.bucket = my-pypi-bucket
+    storage.region_name = us-east-1
+
 CloudFront
 ----------
 This option will store your packages in S3 but use CloudFront to deliver the packages.

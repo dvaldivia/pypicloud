@@ -31,10 +31,14 @@ storage.bucket = {{ gcs_bucket }}
 storage.region_name = {{ bucket_region }}
 {%- endif %}
 {%- else -%}
+{% if endpoint_url is defined -%}
+storage.endpoint_url = {{ endpoint_url }}
+storage.addressing_style = {{ addressing_style }}
+{% endif -%}
 storage.aws_access_key_id = {{ access_key }}
 storage.aws_secret_access_key = {{ secret_key }}
 storage.bucket = {{ s3_bucket }}
-{% if bucket_region -%}
+{% if bucket_region is defined -%}
 storage.region_name = {{ bucket_region }}
 {%- endif %}
 {%- endif %}
