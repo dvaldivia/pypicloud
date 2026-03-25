@@ -1,0 +1,276 @@
+services:
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+  minio-setup:
+    image: minio/mc
+    depends_on:
+      minio:
+        condition: service_healthy
+    restart: "no"
+    entrypoint: >
+      sh -c "
+        mc alias set local http://minio:9000 minioadmin minioadmin &&
+        mc mb --ignore-existing local/pypi &&
+        echo 'Bucket created'
+      "
+
+  pypicloud:
+    image: dvaldivia/pypicloud:latest
+    depends_on:
+      minio-setup:
+        condition: service_completed_successfully
+    volumes:
+      - ./config.ini:/etc/pypicloud/config.ini:ro
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/health')\""]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+
+  test-pip:
+    image: python:3.13-slim-bookworm
+    depends_on:
+      pypicloud:
+        condition: service_healthy
+    environment:
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+    entrypoint:
+      - bash
+      - -c
+      - |
+        set -e
+
+        echo '=== Installing test tools ==='
+        pip install uv awscli --quiet
+
+        echo ''
+        echo '=== Step 1: Verify pypicloud is up ==='
+        python -c "import urllib.request; print(urllib.request.urlopen('http://pypicloud:8080/health').read().decode())"
+
+        echo ''
+        echo '=== Step 2: Check MinIO bucket is empty ==='
+        BEFORE=$$(aws --endpoint-url http://minio:9000 s3 ls s3://pypi/ --recursive 2>/dev/null | wc -l | tr -d ' ')
+        echo "Objects in bucket before install: $$BEFORE"
+
+        echo ''
+        echo '=== Step 3: Install markupsafe==3.0.2 through pypicloud ==='
+        uv pip install --system --no-cache --reinstall --index-url http://pypicloud:8080/simple/ 'markupsafe==3.0.2' -v 2>&1 | tail -30
+
+        echo ''
+        echo '=== Step 4: Verify package was installed ==='
+        python -c "import markupsafe; print('markupsafe version:', markupsafe.__version__)"
+
+        echo ''
+        echo '=== Step 5: Check MinIO for cached package ==='
+        AFTER=$$(aws --endpoint-url http://minio:9000 s3 ls s3://pypi/ --recursive 2>/dev/null | wc -l | tr -d ' ')
+        echo "Objects in bucket after install: $$AFTER"
+        aws --endpoint-url http://minio:9000 s3 ls s3://pypi/ --recursive 2>/dev/null || true
+
+        echo ''
+        echo '=== Step 6: Check pypicloud package cache ==='
+        python -c "import urllib.request, json; data=json.loads(urllib.request.urlopen('http://pypicloud:8080/api/package/').read()); print('Cached packages:', json.dumps(data, indent=2))"
+
+        echo ''
+        if [ "$$AFTER" -gt "$$BEFORE" ]; then
+          echo '*** PASS: Package was cached in MinIO! ***'
+        else
+          echo '*** FAIL: No new objects in MinIO bucket ***'
+          exit 1
+        fi
+
+  test-uv-project:
+    image: python:3.13-slim-bookworm
+    depends_on:
+      pypicloud:
+        condition: service_healthy
+    environment:
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+    entrypoint:
+      - bash
+      - -c
+      - |
+        set -e
+
+        echo '=== Installing test tools ==='
+        pip install uv awscli --quiet
+
+        echo ''
+        echo '=== Step 1: Verify pypicloud is up ==='
+        python -c "import urllib.request; print(urllib.request.urlopen('http://pypicloud:8080/health').read().decode())"
+
+        echo ''
+        echo '=== Step 2: Check MinIO bucket before ==='
+        BEFORE=$$(aws --endpoint-url http://minio:9000 s3 ls s3://pypi/ --recursive 2>/dev/null | wc -l | tr -d ' ')
+        echo "Objects in bucket before: $$BEFORE"
+
+        echo ''
+        echo '=== Step 3: Create a uv project and add a dependency through pypicloud ==='
+        mkdir -p /tmp/test-project && cd /tmp/test-project
+        uv init --no-progress
+        cat pyproject.toml
+
+        echo ''
+        echo '--- Adding markupsafe via uv add with pypicloud index ---'
+        uv add --no-cache --index-url http://pypicloud:8080/simple/ 'markupsafe==3.0.2' -v 2>&1 | tail -30
+
+        echo ''
+        echo '=== Step 4: Verify dependency is in lockfile ==='
+        grep -i markupsafe uv.lock || echo "markupsafe not found in uv.lock"
+
+        echo ''
+        echo '=== Step 5: Verify package works in project venv ==='
+        uv run --no-cache python -c "import markupsafe; print('markupsafe imported successfully')"
+
+        echo ''
+        echo '=== Step 6: Check MinIO for cached package ==='
+        AFTER=$$(aws --endpoint-url http://minio:9000 s3 ls s3://pypi/ --recursive 2>/dev/null | wc -l | tr -d ' ')
+        echo "Objects in bucket after: $$AFTER"
+        aws --endpoint-url http://minio:9000 s3 ls s3://pypi/ --recursive 2>/dev/null || true
+
+        echo ''
+        echo '=== Step 7: Check pypicloud package cache ==='
+        python -c "import urllib.request, json; data=json.loads(urllib.request.urlopen('http://pypicloud:8080/api/package/').read()); print('Cached packages:', json.dumps(data, indent=2))"
+
+        echo ''
+        if [ "$$AFTER" -gt "$$BEFORE" ]; then
+          echo '*** PASS: Package was cached in MinIO via uv project! ***'
+        else
+          echo '*** FAIL: No new objects in MinIO bucket ***'
+          exit 1
+        fi
+
+  test-pip-env:
+    image: python:3.13-slim-bookworm
+    depends_on:
+      pypicloud:
+        condition: service_healthy
+    environment:
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      PIP_INDEX_URL: http://pypicloud:8080/simple/
+      PIP_TRUSTED_HOST: pypicloud
+      UV_INDEX_URL: http://pypicloud:8080/simple/
+    entrypoint:
+      - bash
+      - -c
+      - |
+        set -e
+
+        echo '=== Installing test tools ==='
+        pip install uv awscli --quiet
+
+        echo ''
+        echo '=== Step 1: Verify pypicloud is up ==='
+        python -c "import urllib.request; print(urllib.request.urlopen('http://pypicloud:8080/health').read().decode())"
+
+        echo ''
+        echo '=== Step 2: Check MinIO bucket is empty ==='
+        BEFORE=$$(aws --endpoint-url http://minio:9000 s3 ls s3://pypi/ --recursive 2>/dev/null | wc -l | tr -d ' ')
+        echo "Objects in bucket before install: $$BEFORE"
+
+        echo ''
+        echo '=== Step 3: Install markupsafe==3.0.2 via env var proxy ==='
+        echo "PIP_INDEX_URL=$$PIP_INDEX_URL"
+        echo "UV_INDEX_URL=$$UV_INDEX_URL"
+        uv pip install --system --no-cache --reinstall 'markupsafe==3.0.2' -v 2>&1 | tail -30
+
+        echo ''
+        echo '=== Step 4: Verify package was installed ==='
+        python -c "import markupsafe; print('markupsafe version:', markupsafe.__version__)"
+
+        echo ''
+        echo '=== Step 5: Check MinIO for cached package ==='
+        AFTER=$$(aws --endpoint-url http://minio:9000 s3 ls s3://pypi/ --recursive 2>/dev/null | wc -l | tr -d ' ')
+        echo "Objects in bucket after install: $$AFTER"
+        aws --endpoint-url http://minio:9000 s3 ls s3://pypi/ --recursive 2>/dev/null || true
+
+        echo ''
+        echo '=== Step 6: Check pypicloud package cache ==='
+        python -c "import urllib.request, json; data=json.loads(urllib.request.urlopen('http://pypicloud:8080/api/package/').read()); print('Cached packages:', json.dumps(data, indent=2))"
+
+        echo ''
+        if [ "$$AFTER" -gt "$$BEFORE" ]; then
+          echo '*** PASS: Package was cached in MinIO via env var proxy! ***'
+        else
+          echo '*** FAIL: No new objects in MinIO bucket ***'
+          exit 1
+        fi
+
+  test-uv-project-env:
+    image: python:3.13-slim-bookworm
+    depends_on:
+      pypicloud:
+        condition: service_healthy
+    environment:
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      PIP_INDEX_URL: http://pypicloud:8080/simple/
+      PIP_TRUSTED_HOST: pypicloud
+      UV_INDEX_URL: http://pypicloud:8080/simple/
+    entrypoint:
+      - bash
+      - -c
+      - |
+        set -e
+
+        echo '=== Installing test tools ==='
+        pip install uv awscli --quiet
+
+        echo ''
+        echo '=== Step 1: Verify pypicloud is up ==='
+        python -c "import urllib.request; print(urllib.request.urlopen('http://pypicloud:8080/health').read().decode())"
+
+        echo ''
+        echo '=== Step 2: Check MinIO bucket before ==='
+        BEFORE=$$(aws --endpoint-url http://minio:9000 s3 ls s3://pypi/ --recursive 2>/dev/null | wc -l | tr -d ' ')
+        echo "Objects in bucket before: $$BEFORE"
+
+        echo ''
+        echo '=== Step 3: Create a uv project and add a dependency via env var proxy ==='
+        mkdir -p /tmp/test-project && cd /tmp/test-project
+        echo "PIP_INDEX_URL=$$PIP_INDEX_URL"
+        echo "UV_INDEX_URL=$$UV_INDEX_URL"
+        uv init --no-progress
+        cat pyproject.toml
+
+        echo ''
+        echo '--- Adding markupsafe via uv add (no --index-url flag) ---'
+        uv add --no-cache 'markupsafe==3.0.2' -v 2>&1 | tail -30
+
+        echo ''
+        echo '=== Step 4: Verify dependency is in lockfile ==='
+        grep -i markupsafe uv.lock || echo "markupsafe not found in uv.lock"
+
+        echo ''
+        echo '=== Step 5: Verify package works in project venv ==='
+        uv run --no-cache python -c "import markupsafe; print('markupsafe imported successfully')"
+
+        echo ''
+        echo '=== Step 6: Check MinIO for cached package ==='
+        AFTER=$$(aws --endpoint-url http://minio:9000 s3 ls s3://pypi/ --recursive 2>/dev/null | wc -l | tr -d ' ')
+        echo "Objects in bucket after: $$AFTER"
+        aws --endpoint-url http://minio:9000 s3 ls s3://pypi/ --recursive 2>/dev/null || true
+
+        echo ''
+        echo '=== Step 7: Check pypicloud package cache ==='
+        python -c "import urllib.request, json; data=json.loads(urllib.request.urlopen('http://pypicloud:8080/api/package/').read()); print('Cached packages:', json.dumps(data, indent=2))"
+
+        echo ''
+        if [ "$$AFTER" -gt "$$BEFORE" ]; then
+          echo '*** PASS: Package was cached in MinIO via uv project env var proxy! ***'
+        else
+          echo '*** FAIL: No new objects in MinIO bucket ***'
+          exit 1
+        fi

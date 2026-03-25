@@ -1,0 +1,10 @@
+.venv
+.git
+.claude
+__pycache__
+*.pyc
+*.egg-info
+docker
+doc
+tests
+*.sqlite
